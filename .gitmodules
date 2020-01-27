@@ -25,3 +25,9 @@
 [submodule "Embedded/lib/Timer"]
 	path = Embedded/lib/Timer
 	url = https://github.com/doates625/Timer.git
+[submodule "Embedded/lib/DigitalOut"]
+	path = Embedded/lib/DigitalOut
+	url = https://github.com/doates625/DigitalOut.git
+[submodule "Matlab/lib/+serial_com"]
+	path = Matlab/lib/+serial_com
+	url = https://github.com/doates625/serial_com_m
