@@ -20,7 +20,7 @@ namespace State
 	state_t state;
 
 	// Error LED
-	const uint8_t pin_led = 13;
+	const uint8_t pin_led = LED_BUILTIN;
 	DigitalOut led(pin_led);
 	void error(uint8_t blinks);
 }
@@ -30,10 +30,9 @@ namespace State
  */
 void State::init()
 {
-	state = idle;
-	led = 0;
 	if (!Imu::working()) error(1);
 	if (!Mag::working()) error(2);
+	state = idle;
 }
 
 /**
@@ -79,12 +78,15 @@ uint8_t State::get()
  */
 void State::error(uint8_t blinks)
 {
-	for (uint8_t b = 0; b < blinks; b++)
+	while (true)
 	{
-		led = 1;
-		wait_ms(100);
-		led = 0;
-		wait_ms(100);
+		for (uint8_t b = 0; b < blinks; b++)
+		{
+			led = 1;
+			wait_ms(100);
+			led = 0;
+			wait_ms(100);
+		}
+		wait_ms(1000);
 	}
-	wait_ms(1000);
 }
