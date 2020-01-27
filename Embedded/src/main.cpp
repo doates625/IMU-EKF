@@ -1,9 +1,21 @@
-#include <Arduino.h>
+#include <Platform.h>
+#include <CppUtil.h>
+#include <HMC5883L.h>
+#include <MPU6050.h>
+#include <SerialServer.h>
 
-void setup() {
-  // put your setup code here, to run once:
+/**
+ * @brief Arduino setup
+ */
+void setup()
+{
+	return;	// TODO
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
+/**
+ * @brief Arduino loop
+ */
+void loop()
+{
+	return;	// TODO
 }

@@ -1,0 +1,27 @@
+[submodule "Embedded/lib/MPU6050"]
+	path = Embedded/lib/MPU6050
+	url = https://github.com/doates625/MPU6050.git
+[submodule "Embedded/lib/HMC5883L"]
+	path = Embedded/lib/HMC5883L
+	url = https://github.com/doates625/HMC5883L.git
+[submodule "Embedded/lib/SerialServer"]
+	path = Embedded/lib/SerialServer
+	url = https://github.com/doates625/SerialServer.git
+[submodule "Embedded/lib/Platform"]
+	path = Embedded/lib/Platform
+	url = https://github.com/doates625/Platform.git
+[submodule "Embedded/lib/I2CDevice"]
+	path = Embedded/lib/I2CDevice
+	url = https://github.com/doates625/I2CDevice.git
+[submodule "Embedded/lib/I2CReading"]
+	path = Embedded/lib/I2CReading
+	url = https://github.com/doates625/I2CReading.git
+[submodule "Embedded/lib/Struct"]
+	path = Embedded/lib/Struct
+	url = https://github.com/doates625/Struct.git
+[submodule "Embedded/lib/CppUtil"]
+	path = Embedded/lib/CppUtil
+	url = https://github.com/doates625/CppUtil.git
+[submodule "Embedded/lib/Timer"]
+	path = Embedded/lib/Timer
+	url = https://github.com/doates625/Timer.git
