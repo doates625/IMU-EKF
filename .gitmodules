@@ -31,3 +31,6 @@
 [submodule "Matlab/lib/+serial_com"]
 	path = Matlab/lib/+serial_com
 	url = https://github.com/doates625/serial_com_m
+[submodule "Matlab/lib/+timing"]
+	path = Matlab/lib/+timing
+	url = https://github.com/doates625/timing_m

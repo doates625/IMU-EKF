@@ -22,5 +22,5 @@ namespace State
 	// Functions
 	void init();
 	void update();
-	uint8_t get();
+	state_t get();
 }

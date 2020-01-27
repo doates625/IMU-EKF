@@ -9,6 +9,7 @@
 #include <Mag.h>
 #include <Platform.h>
 #include <DigitalOut.h>
+using State::state_t;
 using Platform::wait_ms;
 
 /**
@@ -19,7 +20,7 @@ namespace State
 	// State enum
 	state_t state;
 
-	// Error LED
+	// Debug LED
 	const uint8_t pin_led = LED_BUILTIN;
 	DigitalOut led(pin_led);
 	void error(uint8_t blinks);
@@ -67,7 +68,7 @@ void State::update()
 /**
  * @brief Gets state as byte
  */
-uint8_t State::get()
+state_t State::get()
 {
 	return state;
 }
