@@ -1,4 +1,4 @@
-classdef Mcu < handle
+classdef Mcu < imu_ekf.AbsMcu
     %MCU Bluetooth interface for embedded MCU
     %   
     %   Author: Dan Oates (WPI Class of 2020)
@@ -11,10 +11,6 @@ classdef Mcu < handle
     
     properties (Access = protected)
         server;     % Serial server [SerialServer]
-        times;      % Timestamp log [s, size = [1, N] ]
-        ang_vels;   % Angular velocity log [rad/s, size = [3, N]]
-        mag_flds;   % Magnetic field log [uT, size = [3, N]]
-        log_len;    % Number of recorded stamps
         sampling;   % Sampling enabled flag [logical]
         got_data;   % New data flag [logical]
     end
@@ -27,17 +23,19 @@ classdef Mcu < handle
             import('serial_com.make_bluetooth');
             import('serial_com.SerialServer');
             
+            % Superconstructor
+            times = zeros(1, 0);
+            ang_vels = zeros(3, 0);
+            mag_flds = zeros(3, 0);
+            obj@imu_ekf.AbsMcu(times, ang_vels, mag_flds);
+            
             % Bluetooth interface
             bt = make_bluetooth('IMU-EKF');
             obj.server = SerialServer(bt, obj.start_byte);
             obj.server.add_tx(obj.id_samp, 1, @obj.tx_samp);
             obj.server.add_rx(obj.id_data, 28, @obj.rx_data);
             
-            % Set fields
-            obj.times = zeros(1, 0);
-            obj.ang_vels = zeros(3, 0);
-            obj.mag_flds = zeros(3, 0);
-            obj.log_len = 0;
+            % Set flags
             obj.sampling = false;
             obj.got_data = false;
         end
