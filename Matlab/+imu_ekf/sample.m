@@ -1,5 +1,5 @@
-function run(dur)
-    %RUN(dur) Runs IMU data collection
+function sample(dur)
+    %SAMPLE(dur) Collects samples from embedded system over Bluetooth
     %   
     %   Inputs:
     %   - dur = Sampling duration [s, default = 10]
