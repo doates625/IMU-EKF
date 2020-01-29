@@ -12,9 +12,8 @@
 namespace BT
 {
 	void init();
+	void reset();
 	void update();
-	bool rx_start();
-	bool rx_stop();
-	void tx_state();
-	void tx_data();
+	bool sampling();
+	void send_data();
 }

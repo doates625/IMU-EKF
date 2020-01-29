@@ -4,23 +4,19 @@ classdef Mcu < handle
     %   Author: Dan Oates (WPI Class of 2020)
     
     properties (Access = protected, Constant)
-        start_byte = hex2dec('FF');     % Msg start byte [uint8]
-        id_start = hex2dec('F0');   % Start msg ID [uint8]
-        id_stop = hex2dec('F1');    % Stop msg ID [uint8]
-        id_state = hex2dec('F2');   % State msg ID [uint8]
-        id_data = hex2dec('F3');    % Data msg ID [uint8]
+        start_byte = hex2dec('FF'); % Msg start byte [uint8]
+        id_samp = hex2dec('F0');    % Sample msg ID [uint8]
+        id_data = hex2dec('F1');    % Data msg ID [uint8]
     end
     
     properties (Access = protected)
-        server; % Serial server [SerialServer]
-    end
-    
-    properties (SetAccess = protected)
-        ang_vel = [0; 0; 0];    % Bogy-fixed angular velocity [rad/s]
-        mag_fld = [0; 0; 0];    % Body-fixed magnetic field [uT]
-        state = 'Unknown';      % Device state enum [char]
-        got_state = false;      % Received state flag [logical]
-        got_data = false;       % Received data falg [logical]
+        server;     % Serial server [SerialServer]
+        times;      % Timestamp log [s, size = [1, N] ]
+        ang_vels;   % Angular velocity log [rad/s, size = [3, N]]
+        mag_flds;   % Magnetic field log [uT, size = [3, N]]
+        log_len;    % Number of recorded stamps
+        sampling;   % Sampling enabled flag [logical]
+        got_data;   % New data flag [logical]
     end
     
     methods (Access = public)
@@ -34,69 +30,76 @@ classdef Mcu < handle
             % Bluetooth interface
             bt = make_bluetooth('IMU-EKF');
             obj.server = SerialServer(bt, obj.start_byte);
-            obj.server.add_tx(obj.id_start, 0, @obj.tx_empty);
-            obj.server.add_tx(obj.id_stop, 0, @obj.tx_empty);
-            obj.server.add_rx(obj.id_state, 1, @obj.rx_state);
-            obj.server.add_rx(obj.id_data, 24, @obj.rx_data);
+            obj.server.add_tx(obj.id_samp, 1, @obj.tx_samp);
+            obj.server.add_rx(obj.id_data, 28, @obj.rx_data);
+            
+            % Set fields
+            obj.times = zeros(1, 0);
+            obj.ang_vels = zeros(3, 0);
+            obj.mag_flds = zeros(3, 0);
+            obj.log_len = 0;
+            obj.sampling = false;
+            obj.got_data = false;
         end
         
-        function start(obj)
-            %START(obj) Starts periodic sampling
-            obj.server.tx(obj.id_start);
-        end
-        
-        function stop(obj)
-            %STOP(obj) Stops periodic sampling
-            obj.server.tx(obj.id_stop);
+        function sample(obj, sampling)
+            %SAMPLE(obj, sampling)
+            %   Set sampling enable
+            %   
+            %   Inputs:
+            %   - sampling = Sampling enable [logical]
+            obj.sampling = sampling;
+            obj.server.tx(obj.id_samp);
         end
 
-        function update(obj)
-            %UPDATE(obj) Processes incoming messages
-            obj.got_state = false;
+        function [time, ang_vel, mag_fld] = update(obj)
+            %[time, ang_vel, mag_fld] = update(obj)
+            %   Processes incoming messages
+            %   
+            %   Outputs:
+            %   - time = Timestamp [s]
+            %   - ang_vel = Angular velocity [rad/s]
+            %   - mag_fld = Magnetic field [uT]
             obj.got_data = false;
-            obj.server.rx();
+            while ~obj.got_data
+                obj.server.rx();
+            end
+            n = obj.log_len;
+            time = obj.times(n);
+            ang_vel = obj.ang_vels(:, n);
+            mag_fld = obj.mag_flds(:, n);
+        end
+        
+        function delete(obj)
+            %DELETE(obj) Saves data to log file
+            
+            % Format log file name
+            time = datetime(now, 'ConvertFrom', 'datenum');
+            time.Format = 'MM-dd-HH-mm';
+            log_name = ['logs/Log-', char(time), '.mat'];
+            
+            % Extract variables
+            times_ = obj.times;
+            ang_vels_ = obj.ang_vels;
+            mag_flds_ = obj.mag_flds;
+            
+            % Save to file
+            save(log_name, 'times_', 'ang_vels_', 'mag_flds_');
         end
     end
     
     methods (Access = protected)
-        function tx_empty(~, server)
-            %TX_EMPTY(obj, server) Empty TX callback
+        function tx_samp(obj, server)
+            %TX_SAMP(obj, server) Set sampling enable TX callback
             %   
             %   Inputs:
             %   - server = Server [SerialServer]
             %   
             %   Data format:
-            %   - Empty
-            server.set_tx_data([]);
-        end
-        
-        function rx_state(obj, server)
-            %RX_STATE(obj, server) State RX callback
-            %   
-            %   Inputs:
-            %   - server = Server [SerialServer]
-            %   
-            %   Data format:
-            %   - State byte [uint8]
-            %       0x00 = Idle
-            %       0x01 = Sampling
-            
-            % Imports
-            import('serial_com.Struct');
-            
-            % Unpack data
-            str = Struct(server.get_rx_data());
-            byte = str.get('uint8');
-            
-            % Convert to state string
-            switch byte
-                case 0, obj.state = 'Idle';
-                case 1, obj.state = 'Sampling';
-                otherwise, error('Invalid state byte: %u', data);
-            end
-            
-            % Set RX flag
-            obj.got_state = true;
+            %   - Sampling enable [uint8]
+            %       0x00 = Disabled
+            %       0x01 = Enabled
+            server.set_tx_data(obj.sampling);
         end
         
         function rx_data(obj, server)
@@ -106,6 +109,7 @@ classdef Mcu < handle
             %   - server = Server [SerialServer]
             %   
             %   Data format:
+            %   - Timestamp [single, s]
             %   - Angular velocity [single, [x; y; z]]
             %   - Magnetic field [single, [x; y; z]]
             
@@ -114,8 +118,11 @@ classdef Mcu < handle
             
             % Unpack data
             str = Struct(server.get_rx_data());
-            for i = 1:3, obj.ang_vel(i) = str.get('single'); end
-            for i = 1:3, obj.mag_fld(i) = str.get('single'); end
+            n = obj.log_len + 1;
+            obj.times(n) = str.get('single');
+            for i = 1:3, obj.ang_vels(i, n) = str.get('single'); end
+            for i = 1:3, obj.mag_flds(i, n) = str.get('single'); end
+            obj.log_len = n;
             
             % Set RX flag
             obj.got_data = true;

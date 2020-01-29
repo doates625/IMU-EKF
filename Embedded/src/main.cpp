@@ -29,7 +29,7 @@
  */
 
 // Loop timing
-const float fs = 2.0f;
+const float fs = 50.0f;
 const float ts = 1.0f / fs;
 Timer timer;
 

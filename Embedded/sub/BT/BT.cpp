@@ -7,6 +7,7 @@
 #include <Imu.h>
 #include <Mag.h>
 #include <SerialServer.h>
+#include <Timer.h>
 #include <Struct.h>
 
 /**
@@ -20,19 +21,17 @@ namespace BT
 
 	// Message server
 	const uint8_t start_byte = 0xFF;
-	const uint8_t id_start = 0xF0;
-	const uint8_t id_stop = 0xF1;
-	const uint8_t id_state = 0xF2;
-	const uint8_t id_data = 0xF3;
-	void cb_rx_start(uint8_t* data);
-	void cb_rx_stop(uint8_t* data);
-	void cb_tx_state(uint8_t* data);
+	const uint8_t id_samp = 0xF0;
+	const uint8_t id_data = 0xF1;
+	void cb_rx_samp(uint8_t* data);
 	void cb_tx_data(uint8_t* data);
 	SerialServer server(serial, start_byte);
 
 	// Message data
-	bool rx_start_ = false;
-	bool rx_stop_ = false;
+	bool sampling_ = false;
+
+	// Transmit timer
+	Timer timer;
 }
 
 /**
@@ -41,10 +40,17 @@ namespace BT
 void BT::init()
 {
 	serial->begin(baud);
-	server.add_rx(id_start, 0, cb_rx_start);
-	server.add_rx(id_stop, 0, cb_rx_stop);
-	server.add_tx(id_state, 1, cb_tx_state);
-	server.add_tx(id_data, 24, cb_tx_data);
+	server.add_rx(id_samp, 1, cb_rx_samp);
+	server.add_tx(id_data, 28, cb_tx_data);
+	timer.start();
+}
+
+/**
+ * @brief Resets internal timer
+ */
+void BT::reset()
+{
+	timer.reset();
 }
 
 /**
@@ -52,80 +58,37 @@ void BT::init()
  */
 void BT::update()
 {
-	rx_start_ = false;
-	rx_stop_ = false;
 	server.rx();
 }
 
 /**
- * @brief Returns true if start msg was received since last update
+ * @brief Returns true if sampling is enabled
  */
-bool BT::rx_start()
+bool BT::sampling()
 {
-	return rx_start_;
-}
-
-/**
- * @brief Returns true if stop msg was received since last update
- */
-bool BT::rx_stop()
-{
-	return rx_stop_;
-}
-
-/**
- * @brief Transmits state
- */
-void BT::tx_state()
-{
-	server.tx(id_state);
+	return sampling_;
 }
 
 /**
  * @brief Transmits sensor data
  */
-void BT::tx_data()
+void BT::send_data()
 {
 	server.tx(id_data);
 }
 
 /**
- * @brief Start RX callback
+ * @brief Sampling enable RX callback
  * @param data Message data pointer
  * 
  * Data format:
- * - Empty
+ * - Sampling enable [uint8]
+ *     0x00 = Disabled
+ *     0x01 = Enabled
  */
-void BT::cb_rx_start(uint8_t* data)
+void BT::cb_rx_samp(uint8_t* data)
 {
-	rx_start_ = true;
-}
-
-/**
- * @brief Stop RX callback
- * @param data Message data pointer
- * 
- * Data format:
- * - Empty
- */
-void BT::cb_rx_stop(uint8_t* data)
-{
-	rx_stop_ = true;
-}
-
-/**
- * @brief State TX callback
- * @param data Message data pointer
- * 
- * Data format:
- * - State byte [uint8_t]
- *     0x00 = Idle
- *     0x01 = Sampling
- */
-void BT::cb_tx_state(uint8_t* data)
-{
-	Struct str(data);
-	str << (uint8_t)State::get();
+	sampling_ = (bool)data[0];
 }
 
 /**
@@ -133,12 +96,14 @@ void BT::cb_tx_state(uint8_t* data)
  * @param data Message data pointer
  * 
  * Data format:
+ * - Timestamp [float, s]
  * - Angular velocity [float, [x; y; z]]
  * - Magnetic field [float, [x; y; z]]
  */
 void BT::cb_tx_data(uint8_t* data)
 {
 	Struct str(data);
+	str << timer.read();
 	str << Imu::get_gyr_x();
 	str << Imu::get_gyr_y();
 	str << Imu::get_gyr_z();

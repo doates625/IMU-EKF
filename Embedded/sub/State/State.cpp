@@ -23,7 +23,10 @@ namespace State
 	// Debug LED
 	const uint8_t pin_led = LED_BUILTIN;
 	DigitalOut led(pin_led);
-	void error(uint8_t blinks);
+	
+	// Functions
+	void led_error(uint8_t blinks);
+	void set(state_t next_state);
 }
 
 /**
@@ -31,9 +34,9 @@ namespace State
  */
 void State::init()
 {
-	if (!Imu::working()) error(1);
-	if (!Mag::working()) error(2);
-	state = idle;
+	if (!Imu::working()) led_error(1);
+	if (!Mag::working()) led_error(2);
+	set(idle);
 }
 
 /**
@@ -45,20 +48,12 @@ void State::update()
 	{
 		case idle:
 			// Wait for start
-			if (BT::rx_start())
-			{
-				state = sampling;
-				BT::tx_state();
-			}
+			if (BT::sampling()) set(sampling);
 			break;
 		case sampling:
 			// Sample sensors
-			if (BT::rx_stop())
-			{
-				state = idle;
-				BT::tx_state();
-			}
-			BT::tx_data();
+			if (!BT::sampling()) set(idle);
+			else BT::send_data();
 			break;
 		default:
 			break;
@@ -77,7 +72,7 @@ state_t State::get()
  * @brief Flashes LED to indicate error
  * @param blinks Number of LED blinks
  */
-void State::error(uint8_t blinks)
+void State::led_error(uint8_t blinks)
 {
 	while (true)
 	{
@@ -90,4 +85,23 @@ void State::error(uint8_t blinks)
 		}
 		wait_ms(1000);
 	}
+}
+
+/**
+ * @brief Transitions to new state
+ * @param next_state New state
+ */
+void State::set(state_t next_state)
+{
+	switch (next_state)
+	{
+		case idle:
+			led = 0;
+			break;
+		case sampling:
+			BT::reset();
+			led = 1;
+			break;
+	}
+	state = next_state;
 }

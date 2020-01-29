@@ -18,30 +18,29 @@ function run(dur)
     % Init Mcu
     fprintf('Connecting to MCU...\n');
     mcu = Mcu();
-    mcu.start();
+    mcu.sample(true);
     
     % Comm loop
     timer = Timer();
     while ~timer.elapsed(dur)
-        mcu.update();
-        if mcu.got_state || mcu.got_data
-            clc
-            fprintf('IMU Data Collection\n\n');
-            fprintf('State: %s\n\n', mcu.state);
-            fprintf('Gyro [rad/s]:\n');
-            fprintf('x: %+.2f\n', mcu.ang_vel(1));
-            fprintf('y: %+.2f\n', mcu.ang_vel(2));
-            fprintf('z: %+.2f\n', mcu.ang_vel(3));
-            fprintf('\n');
-            fprintf('Mag [uT]:\n');
-            fprintf('x: %+.2f\n', mcu.mag_fld(1));
-            fprintf('y: %+.2f\n', mcu.mag_fld(2));
-            fprintf('z: %+.2f\n', mcu.mag_fld(3));
-            fprintf('\n');
-        end 
+        [time, ang_vel, mag_fld] = mcu.update();
+        clc
+        fprintf('IMU Data Collection\n');
+        fprintf('\n');
+        fprintf('Time: %.2f\n', time);
+        fprintf('\n');
+        fprintf('Gyro [rad/s]:\n');
+        fprintf('x: %+.2f\n', ang_vel(1));
+        fprintf('y: %+.2f\n', ang_vel(2));
+        fprintf('z: %+.2f\n', ang_vel(3));
+        fprintf('\n');
+        fprintf('Mag [uT]:\n');
+        fprintf('x: %+.2f\n', mag_fld(1));
+        fprintf('y: %+.2f\n', mag_fld(2));
+        fprintf('z: %+.2f\n', mag_fld(3));
+        fprintf('\n');
     end
     
     % Deinit MCU
-    mcu.stop();
-    instrreset;
+    mcu.sample(false);
 end
