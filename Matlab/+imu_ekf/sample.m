@@ -2,7 +2,7 @@ function sample(dur)
     %SAMPLE(dur) Collects samples from embedded system over Bluetooth
     %   
     %   Inputs:
-    %   - dur = Sampling duration [s, default = 10]
+    %   - dur = Sampling duration [s, default = 60]
     clc, instrreset;
     
     % Imports
@@ -10,7 +10,7 @@ function sample(dur)
     import('timing.Timer');
     
     % Default args
-    if nargin < 1, dur = 10; end
+    if nargin < 1, dur = 60; end
     
     % Initial print
     fprintf('IMU Data Collection\n\n');
@@ -21,8 +21,8 @@ function sample(dur)
     mcu.sample(true);
     
     % Comm loop
-    timer = Timer();
-    while ~timer.elapsed(dur)
+    time = 0;
+    while time <= dur
         [time, ang_vel, mag_fld] = mcu.update();
         clc
         fprintf('IMU Data Collection\n');
