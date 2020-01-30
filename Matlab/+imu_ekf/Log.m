@@ -21,5 +21,10 @@ classdef Log < imu_ekf.AbsMcu
             obj@imu_ekf.AbsMcu(times, ang_vels, mag_flds);
             obj.file = file;
         end
+        
+        function dt = get_dt(obj)
+            %dt = GET_DT(obj) Gets mean sample time delta
+            dt = mean(obj.times(2:end) - obj.times(1:end-1));
+        end
     end
 end

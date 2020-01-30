@@ -34,3 +34,9 @@
 [submodule "Matlab/lib/+timing"]
 	path = Matlab/lib/+timing
 	url = https://github.com/doates625/timing_m
+[submodule "Matlab/lib/+quat"]
+	path = Matlab/lib/+quat
+	url = https://github.com/doates625/quat_m
+[submodule "Matlab/lib/+live_plot"]
+	path = Matlab/lib/+live_plot
+	url = https://github.com/doates625/live_plot_m
