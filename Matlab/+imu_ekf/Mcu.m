@@ -74,7 +74,7 @@ classdef Mcu < imu_ekf.AbsMcu
             % Format log file name
             time = datetime(now, 'ConvertFrom', 'datenum');
             time.Format = 'MM-dd-HH-mm';
-            log_name = ['logs/Log-', char(time), '.mat'];
+            log_name = ['Log-', char(time), '.mat'];
             
             % Extract variables
             times_ = obj.times;

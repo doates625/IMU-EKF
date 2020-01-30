@@ -14,7 +14,7 @@ classdef Log < imu_ekf.AbsMcu
             %   
             %   Inputs:
             %   - file = File name [char]
-            data = load(['logs/' file]);
+            data = load(file);
             times = data.times_;
             ang_vels = data.ang_vels_;
             mag_flds = data.mag_flds_;
