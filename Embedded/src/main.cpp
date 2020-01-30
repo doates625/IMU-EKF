@@ -19,11 +19,6 @@
 #include <State.h>
 #include <BT.h>
 
-// USB debug
-#if defined(USB_DEBUG)
-	#include <USB.h>
-#endif
-
 /**
  * Globals
  */
@@ -45,11 +40,6 @@ void setup()
 	State::init();
 	BT::init();
 
-	// USB debug
-	#if defined(USB_DEBUG)
-		USB::init();
-	#endif
-
 	// Start timer
 	timer.start();
 }
@@ -64,11 +54,6 @@ void loop()
 	Mag::update();
 	BT::update();
 	State::update();
-
-	// USB debug
-	#if defined(USB_DEBUG)
-		USB::update();
-	#endif
 
 	// Loop timing
 	while (timer < ts);
