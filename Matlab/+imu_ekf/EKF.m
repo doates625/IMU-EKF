@@ -85,6 +85,9 @@ classdef EKF < handle
             Fx = u_q.mat_int();
             Fu = x_q.mat_ext() * del_uq_ut * del_ut_u;
             cov_x = Fx*cov_x*Fx.' + Fu*obj.cov_u*Fu.';
+            
+            % Normalization
+            [x, cov_x] = obj.normalize(x, cov_x);
         end
         
         function [x, cov_x] = correct(obj, x, cov_x, z)
@@ -116,6 +119,27 @@ classdef EKF < handle
             K = (cov_x*H.')/(H*cov_x*H.' + obj.cov_z);
             x = x + K*(z - hx);
             cov_x = (eye(4) - K*H)*cov_x;
+            
+            % Normalization
+            [x, cov_x] = obj.normalize(x, cov_x);
+        end
+    end
+    
+    methods (Access = protected, Static)
+        function [x, cov_x] = normalize(x, cov_x)
+            %[x, cov_x] = NORMALIZE(x, cov_x)
+            %   Normalizes quaternion state estimate
+            %   
+            %   Inputs:
+            %   - x = State vector
+            %   - cov_x = State CVM
+            %   
+            %   Outputs:
+            %   - x = Normalize state vector
+            %   - cov_x = Normalized state CVM
+            s = 1 / norm(x);
+            x = s * x;
+            cov_x = s^2 * cov_x;
         end
     end
 end
