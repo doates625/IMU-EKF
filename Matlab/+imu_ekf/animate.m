@@ -8,7 +8,7 @@ function animate(log, gyr_bias, mag_bias)
     %   - mag_bias = Magnetometer bias vector [uT]
     %   
     %   Defaults:
-    %   - log: Loaded from 'log_cal_mag.mat'
+    %   - log: Loaded from 'log_test_ekf.mat'
     %   - gyr_bias: Cal from 'log_cal_gyr.mat'
     %   - mag_bias: Cal from 'log_cal_mag.mat'
     
@@ -23,7 +23,7 @@ function animate(log, gyr_bias, mag_bias)
     
     % Default args
     if nargin < 1
-        log = Log('log_cal_mag.mat');
+        log = Log('log_test_ekf.mat');
     end
     if nargin < 2
         log_gyr = Log('log_cal_gyr.mat');
