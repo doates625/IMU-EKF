@@ -30,11 +30,12 @@ if nargin < 3, log_mag = Log('log_cal_mag.mat'); end
 
 % EKF initialization
 q_e = Quat().vector();
+cov_q = zeros(4);
 b_e = log_ekf.mag_flds(:, 1) - bias_b;
 x = EKF.pack(q_e, b_e);
 del_t = log_ekf.get_dt();
-ekf_gyr = EKF(q_e, b_e, zeros(4), cov_w, cov_b, del_t);
-ekf_mag = EKF(q_e, b_e, zeros(4), cov_w, cov_b, del_t);
+ekf_gyr = EKF(q_e, b_e, cov_q, cov_w, cov_b, del_t);
+ekf_mag = EKF(q_e, b_e, cov_q, cov_w, cov_b, del_t);
 
 % Simulation logs
 n = log_ekf.log_len;

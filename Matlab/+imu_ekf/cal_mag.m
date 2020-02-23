@@ -26,21 +26,21 @@ if nargin < 3, disp_ = true; end
 
 % Estimate orientation
 n = log.log_len;
-Rtb = repmat(eye(3), n, 1);
-att = Quat();
+Reb = repmat(eye(3), n, 1);
+q_e = Quat();
 dt = log.get_dt();
 for k = 1:n-1
-    w = log.ang_vels(:, k) - gyr_bias;
-    att = att * Quat(w, norm(w)*dt);
+    w_b = log.ang_vels(:, k) - gyr_bias;
+    q_e = q_e * Quat(w_b, norm(w_b)*dt);
     i = 3*(k-1) + (1:3);
-    Rtb(i+3, :) = att.inv().mat_rot();
+    Reb(i+3, :) = q_e.inv().mat_rot();
 end
 
 % Estimate bias
 % A = [I3, Rtb(1); I3, Rtb(2); ...]
 % x = [bias; glob]
 % y = [mag_flds(1); mag_flds(2); ...]
-A = [repmat(eye(3), n, 1), Rtb];
+A = [repmat(eye(3), n, 1), Reb];
 y = reshape(log.mag_flds, [3*n, 1]);
 x = A\y;
 bias = x(1:3);
@@ -50,7 +50,7 @@ glob = x(4:6);
 mag_exp = zeros(3, n);
 for k = 1:n
     i = 3*(k-1) + (1:3);
-    mag_exp(:, k) = Rtb(i, :) * glob + bias;
+    mag_exp(:, k) = Reb(i, :) * glob + bias;
 end
 err = log.mag_flds - mag_exp;
 cov_ = err * err.' / log.log_len;
