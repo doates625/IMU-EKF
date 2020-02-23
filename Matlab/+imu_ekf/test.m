@@ -1,6 +1,6 @@
-function test_ekf2(log_ekf, log_gyr, log_mag)
-%TEST_EKF2(log_ekf, log_gyr, log_mag)
-%   Test EKF2 Matlab implementation
+function test(log_ekf, log_gyr, log_mag)
+%TEST(log_ekf, log_gyr, log_mag)
+%   Test EKF Matlab implementation
 %   
 %   Inputs:
 %   - log_ekf = Log for EKF testing [imu_ekf.Log]
@@ -16,7 +16,7 @@ function test_ekf2(log_ekf, log_gyr, log_mag)
 import('imu_ekf.Log');
 import('imu_ekf.cal_gyr');
 import('imu_ekf.cal_mag');
-import('imu_ekf.EKF2');
+import('imu_ekf.EKF');
 import('quat.Quat');
 
 % Default args
@@ -29,50 +29,40 @@ if nargin < 3, log_mag = Log('log_cal_mag.mat'); end
 [bias_b, cov_b] = cal_mag(log_mag, bias_w, false);
 
 % EKF initialization
-q = Quat().vector();
-bE = log_ekf.mag_flds(:, 1) - bias_b;
-x = [q; bE];
-cov_x = zeros(7);
-cov_x(1:4, 1:4) = 0.01 * eye(4);
-cov_x(5:7, 5:7) = cov_b;
-cov_u = cov_w;
-cov_z = cov_b;
+q_e = Quat().vector();
+b_e = log_ekf.mag_flds(:, 1) - bias_b;
+x = EKF.pack(q_e, b_e);
 del_t = log_ekf.get_dt();
-ekf = EKF2(cov_u, cov_z, del_t);
+ekf_gyr = EKF(q_e, b_e, zeros(4), cov_w, cov_b, del_t);
+ekf_mag = EKF(q_e, b_e, zeros(4), cov_w, cov_b, del_t);
 
 % Simulation logs
 n = log_ekf.log_len;
 x_gyr = [x, zeros(7, n-1)]; % State log gyro-only
 x_mag = [x, zeros(7, n-1)]; % State log mag correction
-x_gyr_cov = cov_x;          % Covariance gyro-only
-x_mag_cov = cov_x;          % Covariance mag correction
+x_cov_gyr = ekf_gyr.cov_x;  % Covariance gyro-only
+x_cov_mag = ekf_mag.cov_x;  % Covariance mag correction
 tr_cov_gyr = zeros(1, n);   % Covariance trace log gyro-only
 tr_cov_mag = zeros(1, n);   % Covariance trace log mag correction
 
 % EKF simulation
-tr_cov_gyr(1) = trace(x_gyr_cov);
-tr_cov_mag(1) = trace(x_mag_cov);
+tr_cov_gyr(1) = trace(x_cov_gyr);
+tr_cov_mag(1) = trace(x_cov_mag);
 for i = 1:n-1
     % Input and observation
     u = log_ekf.ang_vels(:, i) - bias_w;
     z = log_ekf.mag_flds(:, i) - bias_b;
     
     % Gyro only
-    x = x_gyr(:, i);
-    cov_x = x_gyr_cov;
-    [x, cov_x] = ekf.predict(x, cov_x, u);
-    x_gyr(:, i+1) = x;
-    x_gyr_cov = cov_x;
-    tr_cov_gyr(i+1) = trace(x_gyr_cov);
+    ekf_gyr.predict(u);
+    x_gyr(:, i+1) = ekf_gyr.x_est;
+    tr_cov_gyr(i+1) = trace(ekf_gyr.cov_x);
     
     % Mag correction
-    x = x_mag(:, i);
-    cov_x = x_mag_cov;
-    [x, cov_x] = ekf.predict(x, cov_x, u);
-    [x, cov_x] = ekf.correct(x, cov_x, z);
-    x_mag(:, i+1) = x;
-    x_mag_cov = cov_x;
-    tr_cov_mag(i+1) = trace(x_mag_cov);
+    ekf_mag.predict(u);
+    ekf_mag.correct(z);
+    x_mag(:, i+1) = ekf_mag.x_est;
+    tr_cov_mag(i+1) = trace(ekf_mag.cov_x);
 end
 
 % Plot Orientations
@@ -103,6 +93,7 @@ for i = 1:3
     ylabel('Field [uT]')
     plot(t, x_gyr(i+4, :), 'r-')
     plot(t, x_mag(i+4, :), 'b-')
+    ylim([-50, +50])
     legend('Gyr', 'Mag')
 end
 

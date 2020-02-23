@@ -40,3 +40,6 @@
 [submodule "Matlab/lib/+live_plot"]
 	path = Matlab/lib/+live_plot
 	url = https://github.com/doates625/live_plot_m
+[submodule "Matlab/lib/+kalman"]
+	path = Matlab/lib/+kalman
+	url = https://github.com/doates625/kalman_m.git

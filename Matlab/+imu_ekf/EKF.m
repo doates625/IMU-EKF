@@ -1,227 +1,210 @@
-classdef (Abstract) EKF < handle
-    %EKF Superclass for EKF Matlab algorithms
+classdef EKF < kalman.EKF
+    %EKF IMU Extended Kalman Filter
     %   
-    %   Notation:
-    %   - x = State vector
-    %   - u = Input vector
-    %   - z = Observation vector
-    %   - q = Quaternion 
-    %   - w = Angular velocity [rad/s]
-    %   - b = Magnetic field [uT]
-    %   - vE = Vector in Earth frame
-    %   - vB = Vector in Body frame
-    %   - cov_v = Covariance matrix of v
+    %   State x:
+    %   - q_e = Attitude Earth [quat]
+    %   - b_e = Magnetic field Earth [uT]
     %   
-    %   Author: Dan Oates (WPI Class of 2020)
+    %   Input u:
+    %   - w_b = Angular velocity Body [rad/s]
+    %   
+    %   Output z:
+    %   - b_b = Magnetic field Body [uT]
     
-    properties (Access = protected)
-        cov_u;  % Input CVM
-        cov_z;  % Observation CVM
-        del_t;  % Prediction time delta [s]
+    methods (Access = public, Static)
+        function x = pack(q_e, b_e)
+            %x = PACK(q_e, b_e)
+            %   Pack state vector
+            %   - q_e = Attitude Earth [quat]
+            %   - b_e = Mag field Earth [uT]
+            %   - x = State vector [q_e; b_e]
+            x = [q_e; b_e];
+        end
+        
+        function [q_e, b_e] = unpack(x)
+            %[q_e, b_e] = UNPACK(x)
+            %   Unpack state vector
+            %   - x = State vector [q_e; b_e]
+            %   - q_e = Attitude Earth [quat]
+            %   - b_e = Mag field Earth [uT]
+            q_e = x(1:4);
+            b_e = x(5:7);
+        end
     end
     
     methods (Access = public)
-        function obj = EKF(cov_u, cov_z, del_t)
-            %EKF(cov_u, cov_z, del_t)
-            %   Construct EKF algorithm
-            %   
-            %   Inputs:
-            %   - cov_u = Input cov
-            %   - cov_z = Observation cov
+        function obj = EKF(q_est, b_est, cov_q, cov_w, cov_b, del_t)
+            %obj = EKF(q_est, b_est, cov_q, cov_w, cov_b, del_t)
+            %   Construct IMU EKF
+            %   - q_est = Attitude estimate [quat]
+            %   - b_est = Mag field Earth estimate [uT]
+            %   - cov_q = Attitude cov [quat^2]
+            %   - cov_w = Angular vel Body cov [(rad/s)^2]
+            %   - cov_b = Mag field Body cov [uT^2]
+            %   - del_t = Prediction time delta [s]
+            
+            % Imports
+            import('imu_ekf.EKF.pack');
+            
+            % State estimate
+            x_est = pack(q_est, b_est);
+            cov_x = zeros(7);
+            cov_x(1:4, 1:4) = cov_q;
+            cov_x(5:7, 5:7) = cov_b;
+            
+            % Functions
+            f = @(x, u) imu_ekf.EKF.f_(x, u, del_t);
+            h = @(x) imu_ekf.EKF.h_(x);
+            fx = @(x, u) imu_ekf.EKF.fx_(x, u, del_t);
+            fu = @(x, u) imu_ekf.EKF.fu_(x, u, del_t);
+            hx = @(x) imu_ekf.EKF.hx_(x);
+            
+            % Superconstructor
+            obj@kalman.EKF(x_est, cov_x, cov_w, cov_b, f, h, fx, fu, hx);
+        end
+        
+        function x_est = correct(obj, z)
+            %x_est = CORRECT(obj, z)
+            %   Correction step
+            %   - z = Output vector [b_b]
+            %   - x_est = Corrected state [q_e; b_e]
+            
+            % Imports
+            import('imu_ekf.EKF.unpack');
+            
+            % EKF correction
+            x_est = correct@kalman.EKF(obj, z);
+            
+            % Quaternion normalization
+            [q_e, ~] = unpack(x_est);
+            N = ones(7, 1);
+            N(1:4) = 1 / norm(q_e);
+            N = diag(N);
+            obj.x_est = N * x_est;
+            obj.cov_x = N * obj.cov_x * N;
+            x_est = obj.x_est;
+        end
+    end
+    
+    methods (Access = protected, Static)        
+        function xn = f_(x, u, del_t)
+            %xn = F_(x, u, del_t)
+            %   State transition function
+            %   - x = State vector [q_e; b_e]
+            %   - u = Input vector [w_b]
             %   - del_t = Time delta [s]
-            obj.cov_u = cov_u;
-            obj.cov_z = cov_z;
-            obj.del_t = del_t;
-        end
-        
-        function [x, cov_x] = predict(obj, x, cov_x, u)
-            %[x, cov_x] = PREDICT(obj, x, cov_x, u)
-            %   EKF prediction step with quaternion normalization
-            %   
-            %   Inputs:
-            %   - x = State estimate
-            %   - cov_x = State CVM
-            %   - u = Input vector
-            %   
-            %   Outputs:
-            %   - x = Predicted state
-            %   - cov_x = Predicted state CVM
-            [x, cov_x] = obj.predict_(x, cov_x, u);
-            [x, cov_x] = obj.normalize(x, cov_x);
-        end
-        
-        function [x, cov_x] = correct(obj, x, cov_x, z)
-            %[x, cov_x] = CORRECT(obj, x, cov_x, z)
-            %   EKF correction step with quaternion normalization
-            %   
-            %   Inputs:
-            %   - x = State estimate
-            %   - cov_x = State CVM
-            %   - z = Observation vector
-            %   
-            %   Outputs:
-            %   - x = Corrected state
-            %   - cov_x = Corrected state CVM
-            [x, cov_x] = obj.correct_(x, cov_x, z);
-            [x, cov_x] = obj.normalize(x, cov_x);
-        end
-    end
-    
-    methods (Access = protected, Abstract)
-        [x, cov_x] = predict_(obj, x, cov_x, u)
-        %[x, cov_x] = PREDICT_(obj, x, cov_x, u)
-        %   EKF prediction step
-        %   
-        %   Inputs:
-        %   - x = State estimate
-        %   - cov_x = State CVM
-        %   - u = Input vector
-        %   
-        %   Outputs:
-        %   - x = Predicted state
-        %   - cov_x = Predicted state CVM
-        
-        [x, cov_x] = correct_(obj, x, cov_x, z)
-        %[x, cov_x] = CORRECT_(obj, x, cov_x, z)
-        %   EKF correction step
-        %   
-        %   Inputs:
-        %   - x = State estimate
-        %   - cov_x = State CVM
-        %   - z = Observation vector
-        %   
-        %   Outputs:
-        %   - x = Corrected state
-        %   - cov_x = Corrected state CVM
-    end
-    
-    methods (Access = protected)
-        function [q, del_q_q, del_q_w] = predict_q(obj, q, w)
-            %[q, del_q_q, del_q_w] = PREDICT_Q(obj, q, w)
-            %   Quaternion prediction step
-            %   
-            %   Inputs:
-            %   - q = Quaternion orientation
-            %   - w = Body-fixed angular velocity [rad/s]
-            %   
-            %   Outputs:
-            %   - q = Predicted orientation
-            %   - del_q_q = Quaternion jacobian
-            %   - del_q_w = Angular velocity jacobian
-            
+            %   - xn = Next state [q_e; b_e]
+
             % Imports
+            import('imu_ekf.EKF.unpack');
+            import('imu_ekf.EKF.pack');
             import('quat.Quat');
             
-            % Convert to axis-angle
-            norm_w = norm(w);
-            norm_w_inv = 1/norm_w;
-            ang = obj.del_t * norm_w;
-            wh = w * norm_w_inv;
-            del_aa_w = norm_w_inv * [obj.del_t*w.'; eye(3) - wh*wh.'];
-            
-            % Convert to quaternion
-            ang_h = 0.5 * ang;
-            c_ah = cos(ang_h);
-            s_ah = sin(ang_h);
-            dq = [c_ah; s_ah*wh];
-            del_dq_aa = [-0.5*s_ah, zeros(1,3); 0.5*c_ah*wh, s_ah*eye(3)];
-            
-            % Update orientation
-            dq = Quat(dq);
-            q = Quat(q) * dq;
-            del_q_dq = q.mat_ext();
-            q = q.vector();
-            
-            % Transform jacobians
-            del_q_q = dq.mat_int();
-            del_q_w = del_q_dq * del_dq_aa * del_aa_w;
+            % Unpack x and u
+            [q_e, b_e] = unpack(x);
+            w_b = u;
+
+            % Attitude update
+            del_q = Quat(w_b, norm(w_b) * del_t);
+            q_e = Quat(q_e) * del_q;
+
+            % Re-pack x
+            q_e = q_e.vector();
+            xn = pack(q_e, b_e);
         end
         
-        function cov_x = predict_cov_x(obj, cov_x, del_x_x, del_x_u)
-            %cov_x = PREDICT_COV_X(obj, cov_x, del_x_x, del_x_u)
-            %   Update state covariance from prediction step
-            %   
-            %   Inputs:
-            %   - cov_x = State covariance
-            %   - del_x_x = State jacobian
-            %   - del_x_u = Input jacobian
-            %   
-            %   Outputs:
-            %   - cov_x = Updated covariance
-            cov_x_x = del_x_x * cov_x * del_x_x.';
-            cov_x_u = del_x_u * obj.cov_u * del_x_u.';
-            cov_x = cov_x_x + cov_x_u;
-        end
-        
-        function [x, cov_x] = correct_ekf(obj, x, cov_x, z, z_exp, del_z_x)
-            %[x, cov_x] = CORRECT_EKF(obj, x, cov_x, z, z_exp, del_z_x)
-            %   EKF linearized correction step
-            %   
-            %   Inputs:
-            %   - x = State estimate
-            %   - cov_x = State covariance
-            %   - z = Observation
-            %   - z_exp = Predicted observation
-            %   - del_z_x = Observation jacobian
-            %   
-            %   Outputs:
-            %   - x = Corrected state estimate
-            %   - cov_x = Corrected state covariance
-            k_gain = (cov_x*del_z_x.')/(del_z_x*cov_x*del_z_x.' + obj.cov_z);
-            x = x + k_gain*(z - z_exp);
-            n = length(x);
-            cov_x = (eye(n) - k_gain*del_z_x)*cov_x;
-        end
-    end
-    
-    methods (Access = protected, Static)
-        function [bB, del_bB_q, del_bB_bE] = predict_bB(q, bE)
-            %[bB, del_bB_q, del_bB_bE] = PREDICT_BB(obj, q, bE)
-            %   Body-fixed mag field prediction
-            %   
-            %   Inputs:
-            %   - q = Orientation estimate
-            %   - bE = Global mag field estimate [uT]
-            %   
-            %   Outputs:
-            %   - bB = Expected body-fixed field [uT]
-            %   - del_bB_q = Quaternion jacobian
-            %   - del_bB_bE = Global field jacobian
+        function z = h_(x)
+            %z = H_(x)
+            %   Output function
+            %   - x = State vector [q_e; b_e]
+            %   - z = Output vector [b_b]
             
             % Imports
+            import('imu_ekf.EKF.unpack');
             import('quat.Quat');
             
-            % Field prediction
-            Reb = Quat(q).inv().mat_rot();
-            bB = Reb * bE;
-            
-            % Quaternion jacobian
-            q0 = q(1:1);
-            q1 = q(2:4);
-            del_bB_q0 = 2*(q0*bE - q1);
-            del_bB_q1 = 2*((dot(q1, bE) - q0)*eye(3) + q1*bE.' - bE*q1.');
-            del_bB_q = [del_bB_q0, del_bB_q1];
-            
-            % Global field jacobian
-            del_bB_bE = Reb;
+            % Magnetometer output
+            [q_e, b_e] = unpack(x);
+            z = Quat(q_e).inv().rotate(b_e);
         end
         
-        function [x, cov_x] = normalize(x, cov_x)
-            %[x, cov_x] = NORMALIZE(x, cov_x)
-            %   Normalizes quaternion of state estimate
-            %   
-            %   Inputs:
-            %   - x = State vector
-            %   - cov_x = State CVM
-            %   
-            %   Outputs:
-            %   - x = Normalized state vector
-            %   - cov_x = Normalized state CVM
-            diag_A = ones(length(x), 1);
-            diag_A(1:4) = 1 / norm(x(1:4));
-            A = diag(diag_A);
-            x = A*x;
-            cov_x = A*cov_x*A.';
+        function jac_xx = fx_(~, u, del_t)
+            %jac_xx = FX_(x, u, del_t)
+            %   Get state Jacobian
+            %   - x = State vector [q_e; b_e]
+            %   - u = Input vector [w_b]
+            %   - del_t = Time delta [s]
+            %   - jac_xx = State Jacobian
+
+            % Imports
+            import('imu_ekf.EKF.unpack');
+            import('quat.Quat');
+
+            % Jacobian
+            jac_xx = eye(7);
+            jac_xx(1:4, 1:4) = Quat(u, norm(u) * del_t).mat_int();
+        end
+        
+        function jac_xu = fu_(x, u, del_t)
+            %jac_xu = FU_(x, u, del_t)
+            %   Get input Jacobian
+            %   - x = State vector [q_e; b_e]
+            %   - u = Input vector [w_b]
+            %   - del_t = Time delta [s]
+            %   - jac_xu = State Jacobian
+
+            % Imports
+            import('imu_ekf.EKF.unpack');
+            import('quat.Quat');
+
+            % Unpack x and u
+            [q_e, ~] = unpack(x);
+            w_b = u;
+
+            % Attitude from delta-q
+            q_e = Quat(q_e);
+            jac_qe_dq = q_e.mat_ext();
+
+            % Delta-q from theta-b
+            norm_wb = norm(w_b);
+            norm_wb_inv = 1 / norm_wb;
+            del_th = 0.5 * norm_wb * del_t;
+            sin_th = sin(del_th);
+            cos_th = cos(del_th);
+            wh = w_b * norm_wb_inv;
+            jac_dq_thb = zeros(4);
+            jac_dq_thb(1, 1) = -0.5 * sin_th;
+            jac_dq_thb(2:4, 1) = 0.5 * cos_th * wh;
+            jac_dq_thb(2:4, 2:4) = sin_th * eye(3);
+
+            % Theta-b from w_b
+            jac_th_wb = norm_wb_inv * (w_b.' * del_t);
+            jac_wh_wb = norm_wb_inv * (eye(3) - wh * wh.');
+            jac_thb_wb = [jac_th_wb; jac_wh_wb];
+
+            % Jacobian
+            jac_xu = zeros(7, 3);
+            jac_xu(1:4, :) = jac_qe_dq * jac_dq_thb * jac_thb_wb;
+        end
+        
+        function jac_zx = hx_(x)
+            %jac_zx = HX_(x)
+            %   Get magnetometer output Jacobian
+            %   - x = State vector [q_e; b_e]
+            %   - jac_zx = Output Jacobian
+            
+            % Imports
+            import('imu_ekf.EKF.unpack');
+            import('quat.Quat');
+            
+            % Unpack state vector
+            [q_e, b_e] = unpack(x);
+            q_e_inv = Quat(q_e).inv();
+            
+            % Output Jacobain
+            jac_zx = zeros(3, 7);
+            jac_zx(:, 1:4) = q_e_inv.jac_rot(b_e);
+            jac_zx(:, 5:7) = q_e_inv.mat_rot();
         end
     end
 end
